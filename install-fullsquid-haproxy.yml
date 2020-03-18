@@ -9,7 +9,7 @@
     - name: Installation squid
       apt: name=squid state=latest
  
-    - name: Configuration squid
+    - name: Configuration squid plage IP et autorisations acces
       replace:
         path: /etc/squid/squid.conf
         regexp: "{{ item.regexp }}"
@@ -25,8 +25,8 @@
     - name: Installation haproxy
       apt: name=haproxy state=latest
 
-    - name: Configuration haproxy
-      blockinfile:
+    - name: Configuration haproxy load balancer sur les 2 serveurs web
+      blockinfile: 
        path: /etc/haproxy/haproxy.cfg
        insertafter: EOF
        block: |2 
@@ -41,7 +41,7 @@
            server nginx {{ server_nginx_mysql }}:80 check
 
     
-    - name: Restart haproxy service
+    - name: Restart haproxy service apres modif
       command: systemctl restart haproxy
 
     - name: regles iptables pour http https ssh mysql et port squid

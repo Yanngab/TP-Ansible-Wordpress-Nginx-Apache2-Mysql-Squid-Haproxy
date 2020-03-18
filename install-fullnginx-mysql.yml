@@ -1,5 +1,5 @@
 ---
-- name: installation serveur web nginx
+- name: installation serveur web nginx avec mysql
   hosts: serveur-nginx-mysql
   vars_files:
     - /etc/ansible/vars/vars.yml
@@ -33,20 +33,17 @@
         password={{ wp_mysql_password}}
         priv=*.*:ALL
 
-    - name: Modification IP connexion a la db
+    - name: Modification IP connexion par celle de la db
       replace:
         path: /etc/mysql/mariadb.conf.d/50-server.cnf
         regexp: '127.0.0.1'
         replace: '{{ server_nginx_mysql }}'
       
-    - name: Autorisation acces a la db
+    - name: Autorisation acces a la db pour autre serveur web
       command: mysql -u root --password=root --execute="GRANT ALL PRIVILEGES ON wp.* TO wpuser@'{{ server_apache }}' IDENTIFIED BY 'wppassword'"
 
     - name: Restart service mysql pour les modifs
       command: systemctl restart mysql
-
-    - name: Stop apache installe et lance par defaut
-      command: systemctl stop apache2
 
     - name: download Wordpress
       get_url:
@@ -72,10 +69,10 @@
         - {regexp: 'fpm.sock;', replace: 'fpm.sock; }'}
         - {regexp: 'fpm.sock; } }', replace: 'fpm.sock; }'}
 
-    - name: copie fichier conf Wordpress
+    - name: creation fichier conf Wordpress depuis fichier sample
       command: mv /var/www/wordpress/wp-config-sample.php /var/www/wordpress/wp-config.php creates=/var/www/wordpress/wp-config.php
 
-    - name: modification fichier conf Wordpress
+    - name: remplissage fichier conf Wordpress avec infos de la db
       replace:
         path: /var/www/wordpress/wp-config.php
         regexp: "{{ item.regexp }}"
@@ -88,13 +85,19 @@
     - name: Restart Nginx apres modifications
       command: systemctl restart nginx
 
-    - name: Configuration passage par proxy pour internet
+    - name: Configuration passage par proxy pour internet dans fichier environment
       lineinfile:
         path: /etc/environment
         line: 'http_proxy="http://{{ server_squid_haproxy }}:3128/"'
 
-    -  name: reboot la machine pour rattacher au proxy
+    -  name: reboot la machine pour rattacher au proxy et reload les vars environment
        reboot:
+
+    - name: Stop apache installe et lance par defaut
+      command: systemctl stop apache2
+
+    - name: Restart nginx pour afficher la page wordpress
+      command: systemctl restart nginx
 
     - name: regles iptables pour http https ssh mysql et squid
       command: "{{ item }} "

@@ -36,10 +36,10 @@
         regexp: 'DocumentRoot /var/www/html'
         replace: 'DocumentRoot /var/www/wordpress'
 
-    - name: copie fichier conf Wordpress
+    - name: Creation fichier conf Wordpress depuis le sample
       command: mv /var/www/wordpress/wp-config-sample.php /var/www/wordpress/wp-config.php creates=/var/www/wordpress/wp-config.php
 
-    - name: modification fichier conf Wordpress
+    - name: remplissage fichier conf Wordpress avec infos db
       replace:
         path: /var/www/wordpress/wp-config.php
         regexp: "{{ item.regexp }}"
@@ -53,7 +53,7 @@
     - name: Restart Apache2 apres modifications 
       command: systemctl restart apache2
 
-    - name: Configuration passage par proxy pour Internet
+    - name: Configuration passage par proxy pour Internet dans fichier environment
       lineinfile:
         path: /etc/environment
         line: 'http_proxy="http://{{ server_squid_haproxy }}:3128/"'
