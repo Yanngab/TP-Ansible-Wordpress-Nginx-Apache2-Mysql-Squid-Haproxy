@@ -11,7 +11,8 @@ Déploiement sur DEBIAN 10 de
 
 Méthode d'installation :
 
-J'ai utilisé des machines Debians 10 propres pour ce TP.
+<b>J'ai utilisé des machines Debians 10 propres pour ce TP. J'ai également lancé tous les playbook avec l'utilisateur root (ce qui est déconseillé), avec l'option --ask-pass afin d'entrer le mot de passe root.<b>
+
 Récupérer les adresses IP des 3 machines et modifier les adresses IP situées dans le fichier hosts ainsi que le fichier /vars/vars.yml.
 Lancer ensuite le playbook squid-haproxy et ceux des 2 serveurs web.
 Vous pourrez par ailleurs observer les stats de l'haproxy à l'adresse suivante : adresseIP/haproxy?stats
