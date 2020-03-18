@@ -1,0 +1,77 @@
+---
+- name: installation serveur web apache2
+  hosts: serveur-apache
+  vars_files:
+    - /etc/ansible/vars/vars.yml
+  become: yes
+
+  tasks:
+    - name: installation apache2
+      apt: name=apache2 state=latest
+
+    - name: installation php
+      apt: name=php state=latest
+
+    - name: installation php-mysql
+      apt: name=php-mysql state=latest
+
+    - name: installation php-fpm
+      apt: name=php-fpm state=latest
+
+    - name: instalation python
+      apt: name=python3-mysqldb state=latest
+
+    - name: download Wordpress
+      get_url:
+        url=https://wordpress.org/latest.tar.gz
+        dest=/tmp/wordpress.tar.gz
+        validate_certs=no
+
+    - name: extraction Wordpress
+      unarchive: src=/tmp/wordpress.tar.gz dest=/var/www/ copy=no
+   
+    - name: Wordpress page d'accueil apache et autorisation php-fpm
+      replace:
+        path: /etc/apache2/sites-enabled/000-default.conf
+        regexp: 'DocumentRoot /var/www/html'
+        replace: 'DocumentRoot /var/www/wordpress'
+
+    - name: copie fichier conf Wordpress
+      command: mv /var/www/wordpress/wp-config-sample.php /var/www/wordpress/wp-config.php creates=/var/www/wordpress/wp-config.php
+
+    - name: modification fichier conf Wordpress
+      replace:
+        path: /var/www/wordpress/wp-config.php
+        regexp: "{{ item.regexp }}"
+        replace: "{{ item.replace }}"
+      with_items:
+        - {regexp: 'database_name_here', replace: '{{wp_mysql_db}}'}
+        - {regexp: 'username_here', replace: '{{wp_mysql_user}}'}
+        - {regexp: 'password_here', replace: '{{wp_mysql_password}}'}
+        - {regexp: 'localhost', replace: '{{server_nginx_mysql}}'}
+
+    - name: Restart Apache2 apres modifications 
+      command: systemctl restart apache2
+
+    - name: Configuration passage par proxy pour Internet
+      lineinfile:
+        path: /etc/environment
+        line: 'http_proxy="http://{{ server_squid_haproxy }}:3128/"'
+
+    - name: Reboot la machine pour reload les vars environment
+      reboot:
+
+    - name: regles iptables pour http https ssh mysql et squid
+      command: "{{ item }} "
+      with_items:
+      - iptables -A INPUT -p tcp --dport http -j ACCEPT
+      - iptables -A INPUT -p tcp --dport https -j ACCEPT
+      - iptables -A INPUT -p tcp --dport ssh -j ACCEPT
+      - iptables -A INPUT -p tcp --dport mysql -j ACCEPT
+      - iptables -A INPUT -p tcp --dport 3128 -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport http -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport https -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport ssh -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport mysql -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport 3128 -j ACCEPT
+

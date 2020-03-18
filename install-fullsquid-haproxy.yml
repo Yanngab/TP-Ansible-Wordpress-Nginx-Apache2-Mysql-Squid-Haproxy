@@ -1,0 +1,60 @@
+---
+- name: installation serveur proxy squid et haproxy
+  hosts: serveur-squid-haproxy
+  vars_files:
+    - /etc/ansible/vars/vars.yml
+  become: yes
+
+  tasks:
+    - name: Installation squid
+      apt: name=squid state=latest
+ 
+    - name: Configuration squid
+      replace:
+        path: /etc/squid/squid.conf
+        regexp: "{{ item.regexp }}"
+        replace: "{{ item.replace }}"
+      with_items:
+        - {regexp: 'acl localnet src "{{ plage_ip }}"', replace: 'acl localnet src "{{ plage_ip }}"'}
+        - {regexp: 'http_access allow localhost', replace: 'http_access allow all'}
+        - {regexp: 'http_access deny all', replace: '#http_access deny all'}
+
+    - name: Restart squid apres modifications
+      command: systemctl restart squid
+
+    - name: Installation haproxy
+      apt: name=haproxy state=latest
+
+    - name: Configuration haproxy
+      blockinfile:
+       path: /etc/haproxy/haproxy.cfg
+       insertafter: EOF
+       block: |2 
+         frontend http_front
+           bind *:80
+           stats uri /haproxy?stats
+           default_backend http_back
+
+         backend http_back
+           balance roundrobin
+           server apache2 {{ server_apache }}:80 check
+           server nginx {{ server_nginx_mysql }}:80 check
+
+    
+    - name: Restart haproxy service
+      command: systemctl restart haproxy
+
+    - name: regles iptables pour http https ssh mysql et port squid
+      command: "{{ item }} "
+      with_items:
+      - iptables -A INPUT -p tcp --dport http -j ACCEPT
+      - iptables -A INPUT -p tcp --dport https -j ACCEPT
+      - iptables -A INPUT -p tcp --dport ssh -j ACCEPT
+      - iptables -A INPUT -p tcp --dport mysql -j ACCEPT
+      - iptables -A INPUT -p tcp --dport 3128 -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport http -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport https -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport ssh -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport mysql -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport 3128 -j ACCEPT
+

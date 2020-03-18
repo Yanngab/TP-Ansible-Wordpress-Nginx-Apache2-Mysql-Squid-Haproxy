@@ -1,0 +1,8 @@
+---
+wp_mysql_db: wp
+wp_mysql_user: wpuser
+wp_mysql_password: wppassword
+server_nginx_mysql: 192.168.1.66
+server_apache: 192.168.1.100
+server_squid_haproxy: 192.168.1.76
+plage_ip: 192.168.0.0/16

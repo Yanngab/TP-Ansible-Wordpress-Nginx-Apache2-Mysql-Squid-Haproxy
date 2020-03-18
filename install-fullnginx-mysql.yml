@@ -1,0 +1,111 @@
+---
+- name: installation serveur web nginx
+  hosts: serveur-nginx-mysql
+  vars_files:
+    - /etc/ansible/vars/vars.yml
+  become: yes
+
+  tasks:
+    - name: installation nginx
+      apt: name=nginx state=latest
+
+    - name: installation php
+      apt: name=php state=latest
+
+    - name: installation php-mysql
+      apt: name=php-mysql state=latest
+
+    - name: installation php-fpm
+      apt: name=php-fpm state=latest
+
+    - name: installation mysql server
+      apt: name=default-mysql-server state=latest
+
+    - name: instalation python
+      apt: name=python3-mysqldb state=latest
+
+    - name: Creation mysql database      
+      mysql_db: name={{wp_mysql_db}} state=present
+
+    - name: Creation mysql user
+      mysql_user:
+        name={{ wp_mysql_user }}
+        password={{ wp_mysql_password}}
+        priv=*.*:ALL
+
+    - name: Modification IP connexion a la db
+      replace:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        regexp: '127.0.0.1'
+        replace: '{{ server_nginx_mysql }}'
+      
+    - name: Autorisation acces a la db
+      command: mysql -u root --password=root --execute="GRANT ALL PRIVILEGES ON wp.* TO wpuser@'{{ server_apache }}' IDENTIFIED BY 'wppassword'"
+
+    - name: Restart service mysql pour les modifs
+      command: systemctl restart mysql
+
+    - name: Stop apache installe et lance par defaut
+      command: systemctl stop apache2
+
+    - name: download Wordpress
+      get_url:
+        url=https://wordpress.org/latest.tar.gz
+        dest=/tmp/wordpress.tar.gz
+        validate_certs=no
+
+    - name: extraction Wordpress
+      unarchive: src=/tmp/wordpress.tar.gz dest=/var/www/ copy=no
+   
+    - name: Wordpress page d'accueil nginx et autorisation php-fpm
+      replace:
+        path: /etc/nginx/sites-enabled/default
+        regexp: "{{ item.regexp }}"
+        replace: "{{ item.replace }}"
+      with_items:
+        - {regexp: 'root /var/www/html;', replace: 'root /var/www/wordpress;'}
+        - {regexp: 'index.nginx-debian.html;', replace: 'index.nginx-debian.html index.php;'}
+        - {regexp: '#location', replace: 'location'}
+        - {regexp: 'location ~ /', replace: '#location ~ /'}
+        - {regexp: '#	include snippets', replace: '	include snippets'}
+        - {regexp: '#	fastcgi_pass unix', replace: '	fastcgi_pass unix'}
+        - {regexp: 'fpm.sock;', replace: 'fpm.sock; }'}
+        - {regexp: 'fpm.sock; } }', replace: 'fpm.sock; }'}
+
+    - name: copie fichier conf Wordpress
+      command: mv /var/www/wordpress/wp-config-sample.php /var/www/wordpress/wp-config.php creates=/var/www/wordpress/wp-config.php
+
+    - name: modification fichier conf Wordpress
+      replace:
+        path: /var/www/wordpress/wp-config.php
+        regexp: "{{ item.regexp }}"
+        replace: "{{ item.replace }}"
+      with_items:
+        - {regexp: 'database_name_here', replace: '{{wp_mysql_db}}'}
+        - {regexp: 'username_here', replace: '{{wp_mysql_user}}'}
+        - {regexp: 'password_here', replace: '{{wp_mysql_password}}'}
+
+    - name: Restart Nginx apres modifications
+      command: systemctl restart nginx
+
+    - name: Configuration passage par proxy pour internet
+      lineinfile:
+        path: /etc/environment
+        line: 'http_proxy="http://{{ server_squid_haproxy }}:3128/"'
+
+    -  name: reboot la machine pour rattacher au proxy
+       reboot:
+
+    - name: regles iptables pour http https ssh mysql et squid
+      command: "{{ item }} "
+      with_items:
+      - iptables -A INPUT -p tcp --dport http -j ACCEPT
+      - iptables -A INPUT -p tcp --dport https -j ACCEPT
+      - iptables -A INPUT -p tcp --dport ssh -j ACCEPT
+      - iptables -A INPUT -p tcp --dport mysql -j ACCEPT
+      - iptables -A INPUT -p tcp --dport 3128 -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport http -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport https -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport ssh -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport mysql -j ACCEPT
+      - iptables -A OUTPUT -p tcp --dport 3128 -j ACCEPT
